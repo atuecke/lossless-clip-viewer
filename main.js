@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -37,6 +38,23 @@ ipcMain.on('open-file-dialog', (event) => {
         }
     }).catch(err => {
         console.log(err);
+    });
+});
+
+ipcMain.on('save-trimmed-clip', (event, { videoPath, startTime, endTime }) => {
+    const outputPath = path.join(path.dirname(videoPath), 'trimmed');
+    if (!fs.existsSync(outputPath)) {
+        fs.mkdirSync(outputPath);
+    }
+    const outputFileName = path.join(outputPath, `trimmed-${Date.now()}.mp4`);
+
+    const command = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${outputFileName}"`;
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`exec error: ${error}`);
+            return;
+        }
+        console.log(`Trimmed video saved to ${outputFileName}`);
     });
 });
 

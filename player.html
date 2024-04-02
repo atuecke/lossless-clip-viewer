@@ -2,11 +2,23 @@
 <html>
 <head>
     <title>Media Player</title>
+    <style>
+        #controls {
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
     <button id="prevVideo">←</button>
     <video id="videoPlayer" controls width="80%"></video>
     <button id="nextVideo">→</button>
+    <div id="controls">
+        <button id="leftTrim">Left Trim</button>
+        <span id="leftTrimTime">0:00</span>
+        <button id="rightTrim">Right Trim</button>
+        <span id="rightTrimTime">0:00</span>
+        <button id="saveClip">Save Clip</button>
+    </div>
     <script src="player.js"></script>
 </body>
 </html>
