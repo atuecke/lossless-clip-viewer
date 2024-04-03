@@ -1,4 +1,5 @@
 const { ipcRenderer } = require('electron');
+const path = require('path');
 
 let videoPaths = [];
 let currentIndex = 0;
@@ -9,6 +10,8 @@ const videoPlayer = document.getElementById('videoPlayer');
 const leftMarker = document.getElementById('leftMarker');
 const rightMarker = document.getElementById('rightMarker');
 const sliderTrack = document.getElementById('sliderTrack');
+
+let saveFolderPath = '';
 
 ipcRenderer.on('play-videos', (event, paths) => {
     videoPaths = paths;
@@ -54,15 +57,106 @@ document.getElementById('rightTrim').addEventListener('click', () => {
 });
 
 document.getElementById('saveClip').addEventListener('click', () => {
-    if (rightTrimTime <= leftTrimTime) {
-        alert('Invalid trim times. Make sure the right trim is after the left trim.');
+    if (!saveFolderPath) {
+        alert('Please select a save folder first.');
         return;
     }
-    ipcRenderer.send('save-trimmed-clip', {
+
+    // Implement custom dialog functionality here
+    showCustomSaveDialog();
+});
+
+function showCustomSaveDialog() {
+    // Request the main process to send back the sub-folders
+    ipcRenderer.send('get-sub-folders', saveFolderPath);
+}
+
+// Listen for the sub-folders response
+ipcRenderer.on('sub-folders-response', (event, subFolders) => {
+    displayCustomSaveDialog(subFolders); // Now call the function to display the dialog with subFolders
+});
+
+function displayCustomSaveDialog(subFolders) {
+    // Create the dialog overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'dialogOverlay';
+    // Basic styling for the overlay; consider enhancing this for production
+    overlay.style.position = 'fixed';
+    overlay.style.top = 0;
+    overlay.style.left = 0;
+    overlay.style.width = '100%';
+    overlay.style.height = '100vh';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.zIndex = '1000';
+
+    // Dialog container
+    const dialog = document.createElement('div');
+    dialog.style.backgroundColor = '#fff';
+    dialog.style.padding = '20px';
+    dialog.style.borderRadius = '5px';
+    dialog.style.display = 'flex';
+    dialog.style.flexDirection = 'column';
+    dialog.style.gap = '10px';
+    dialog.style.maxHeight = '80vh';
+    dialog.style.overflowY = 'auto';
+
+    // Input for the clip name
+    const defaultName = `clip-${new Date().toISOString().replace(/:/g, '').replace('T', '-').slice(0, -5)}`;
+    const nameInput = document.createElement('input');
+    //nameInput.placeholder = 'Clip name (default: clip-YYYYMMDD-HHMMSS)';
+    nameInput.value = defaultName;
+    nameInput.style.width = '90%';
+    dialog.appendChild(nameInput);
+
+    // Use setTimeout to delay focus and select, ensuring the input is ready
+    setTimeout(() => {
+        nameInput.focus();
+        nameInput.select();
+    }, 100); // A delay of 100ms is usually enough, but this can be adjusted if necessary
+
+    // Display sub-folders as buttons
+    subFolders.forEach(folder => {
+        const folderButton = document.createElement('button');
+        folderButton.textContent = folder;
+        folderButton.onclick = () => {
+            //const clipName = nameInput.value || `clip-${new Date().toISOString().replace(/:/g, '').replace('T', '-').slice(0, -5)}`;
+            const clipName = nameInput.value.trim() || defaultName;
+            saveClip(clipName, folder);
+            overlay.remove(); // Remove overlay after saving
+        };
+        dialog.appendChild(folderButton);
+    });
+
+    // Append dialog to overlay and overlay to body
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+}
+
+function saveClip(name, subFolder) {
+    const clipName = name || `clip-${new Date().toISOString().replace(/:/g, '').replace('T', '-').slice(0, -5)}`;
+    const targetPath = path.join(saveFolderPath, subFolder, `${clipName}.mp4`);
+
+    // Trigger clip saving using IPC to main process with targetPath
+    ipcRenderer.send('save-trimmed-clip-with-name', {
         videoPath: videoPaths[currentIndex],
         startTime: leftTrimTime,
-        endTime: rightTrimTime
+        endTime: rightTrimTime,
+        targetPath: targetPath
     });
+
+    // Close the dialog
+    document.getElementById('dialogOverlay').remove();
+}
+
+document.getElementById('saveFolder').addEventListener('click', () => {
+    ipcRenderer.send('open-save-folder-dialog');
+});
+
+ipcRenderer.on('selected-save-folder', (event, path) => {
+    saveFolderPath = path; // Store the selected folder path
 });
 
 function updateMarkerPositions() {

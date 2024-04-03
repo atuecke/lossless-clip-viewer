@@ -41,21 +41,33 @@ ipcMain.on('open-file-dialog', (event) => {
     });
 });
 
-ipcMain.on('save-trimmed-clip', (event, { videoPath, startTime, endTime }) => {
-    const outputPath = path.join(path.dirname(videoPath), 'trimmed');
-    if (!fs.existsSync(outputPath)) {
-        fs.mkdirSync(outputPath);
-    }
-    const outputFileName = path.join(outputPath, `trimmed-${Date.now()}.mp4`);
+ipcMain.on('open-save-folder-dialog', async (event) => {
+    const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory']
+    });
 
-    const command = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${outputFileName}"`;
+    if (filePaths && filePaths[0]) {
+        event.sender.send('selected-save-folder', filePaths[0]);
+    }
+});
+
+ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTime, targetPath }) => {
+
+    const command = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${targetPath}"`;
     exec(command, (error, stdout, stderr) => {
         if (error) {
             console.error(`exec error: ${error}`);
             return;
         }
-        console.log(`Trimmed video saved to ${outputFileName}`);
+        console.log(`Trimmed video saved to ${targetPath}`);
     });
+});
+
+ipcMain.on('get-sub-folders', (event, saveFolderPath) => {
+    const subFolders = fs.readdirSync(saveFolderPath, { withFileTypes: true })
+                          .filter(dirent => dirent.isDirectory())
+                          .map(dirent => dirent.name);
+    event.sender.send('sub-folders-response', subFolders);
 });
 
 app.whenReady().then(createWindow);
