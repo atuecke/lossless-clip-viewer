@@ -2,16 +2,19 @@
 <html>
 <head>
     <title>Media Player</title>
-    <style>
-        #controls {
-            margin-top: 20px;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css"> <!-- Link to your CSS file -->
 </head>
 <body>
-    <button id="prevVideo">←</button>
-    <video id="videoPlayer" controls width="80%"></video>
-    <button id="nextVideo">→</button>
+    <div id="videoContainer">
+        <video id="videoPlayer" controls></video>
+        <button id="prevVideo">←</button>
+        <button id="nextVideo">→</button>
+    </div>
+    <div id="trimSlider">
+        <div id="sliderTrack"></div>
+        <div id="leftMarker" class="marker"></div>
+        <div id="rightMarker" class="marker"></div>
+    </div>
     <div id="controls">
         <button id="leftTrim">Left Trim</button>
         <span id="leftTrimTime">0:00</span>

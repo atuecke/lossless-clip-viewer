@@ -1,0 +1,41 @@
+#videoContainer {
+    display: flex;
+    /*justify-content: center;*/
+    /*align-items: center;*/
+    gap: 10px; /* Adjust the space between the buttons and the video */
+}
+
+#videoPlayer {
+    width: 80%; /* This matches the width of the trimSlider for alignment */
+    max-width: 100%; /* Ensures the video does not overflow its container */
+}
+
+#trimSlider {
+    width: 80%;
+    height: 20px;
+    position: relative;
+    background-color: #ddd;
+    margin-top: 20px;
+}
+
+#sliderTrack {
+    position: absolute;
+    background-color: #aaa;
+    height: 100%;
+}
+
+.marker {
+    position: absolute;
+    width: 10px;
+    height: 100%;
+    background-color: red;
+    cursor: pointer;
+}
+
+#leftMarker {
+    left: 0;
+}
+
+#rightMarker {
+    right: 0;
+}
