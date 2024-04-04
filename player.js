@@ -13,6 +13,8 @@ const sliderTrack = document.getElementById('sliderTrack');
 
 let saveFolderPath = '';
 
+let isSaveDialogOpen = false;
+
 ipcRenderer.on('play-videos', (event, paths) => {
     videoPaths = paths;
     playVideoAtIndex(currentIndex);
@@ -77,6 +79,13 @@ ipcRenderer.on('sub-folders-response', (event, subFolders) => {
 });
 
 function displayCustomSaveDialog(subFolders) {
+    isSaveDialogOpen = true;
+    const closeDialog = () => {
+        isSaveDialogOpen = false; // Reset the flag when the dialog closes
+        document.removeEventListener('keydown', handleDialogKeydown); // Remove dialog-specific keybinds
+        overlay.remove();
+    };
+
     // Create the dialog overlay
     const overlay = document.createElement('div');
     overlay.id = 'dialogOverlay';
@@ -117,15 +126,33 @@ function displayCustomSaveDialog(subFolders) {
         nameInput.select();
     }, 100); // A delay of 100ms is usually enough, but this can be adjusted if necessary
 
-    // Display sub-folders as buttons
-    subFolders.forEach(folder => {
+    const handleDialogKeydown = (event) => {
+        const key = event.key;
+        if (key >= '1' && key <= '9') {
+            // Map number keys to folders
+            const folderIndex = parseInt(key, 10) - 1;
+            if (folderIndex < subFolders.length) {
+                const selectedFolder = subFolders[folderIndex];
+                saveClip(nameInput.value.trim() || defaultName, selectedFolder);
+                overlay.remove();
+            }
+        }
+    };
+
+    document.addEventListener('keydown', handleDialogKeydown);
+
+    // Ensure the listener is removed when the dialog is closed
+    
+
+    // Modify the creation of folder buttons to include the number
+    subFolders.forEach((folder, index) => {
         const folderButton = document.createElement('button');
-        folderButton.textContent = folder;
+        const buttonLabel = index < 9 ? `${index + 1}: ${folder}` : `N: ${folder}`;
+        folderButton.textContent = buttonLabel;
         folderButton.onclick = () => {
-            //const clipName = nameInput.value || `clip-${new Date().toISOString().replace(/:/g, '').replace('T', '-').slice(0, -5)}`;
-            const clipName = nameInput.value.trim() || defaultName;
-            saveClip(clipName, folder);
-            overlay.remove(); // Remove overlay after saving
+            saveClip(nameInput.value.trim() || defaultName, folder);
+            document.removeEventListener('keydown', handleDialogKeydown);
+            overlay.remove();
         };
         dialog.appendChild(folderButton);
     });
@@ -133,6 +160,8 @@ function displayCustomSaveDialog(subFolders) {
     // Append dialog to overlay and overlay to body
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+
+    overlay.onclick = closeDialog;
 }
 
 function saveClip(name, subFolder) {
@@ -157,6 +186,23 @@ document.getElementById('saveFolder').addEventListener('click', () => {
 
 ipcRenderer.on('selected-save-folder', (event, path) => {
     saveFolderPath = path; // Store the selected folder path
+});
+
+ipcRenderer.on('video-moved', (event, { originalPath, newPath }) => {
+    // Remove the moved video from the videoPaths array
+    const index = videoPaths.indexOf(originalPath);
+    if (index > -1) {
+        videoPaths.splice(index, 1); // Remove the moved video from the list
+    }
+
+    // Play the next video, if any
+    if (videoPaths.length > 0) {
+        currentIndex = index >= videoPaths.length ? 0 : index; // Adjust index if needed
+        playVideoAtIndex(currentIndex);
+    } else {
+        // No more videos left, handle accordingly
+        console.log("No more videos to play.");
+    }
 });
 
 function updateMarkerPositions() {
@@ -223,3 +269,45 @@ document.addEventListener('mousemove', (e) => {
     document.getElementById('leftTrimTime').textContent = formatTime(leftTrimTime);
     document.getElementById('rightTrimTime').textContent = formatTime(rightTrimTime);
 });
+
+document.addEventListener('keydown', (event) => {
+    if(!isSaveDialogOpen) {
+        if (event.key === '1') {
+            // Set left marker at current time
+            leftTrimTime = videoPlayer.currentTime;
+            updateMarkerPositions();
+        } else if (event.key === '2') {
+            // Set right marker at current time
+            rightTrimTime = videoPlayer.currentTime;
+            updateMarkerPositions();
+        } else if (event.key === 's') {
+            // Save video
+            showCustomSaveDialog();
+        } else if (event.key === 'ArrowLeft') {
+            // Move to previous video
+            if (currentIndex > 0) {
+                currentIndex--;
+                playVideoAtIndex(currentIndex);
+            }
+        } else if (event.key === 'ArrowRight') {
+            // Move to next video
+            if (currentIndex < videoPaths.length - 1) {
+                currentIndex++;
+                playVideoAtIndex(currentIndex);
+            }
+        }
+        return;
+    }
+});
+
+document.addEventListener('focus', (event) => {
+    const target = event.target; // The element that received focus
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    if (videoPlayer.contains(target)) {
+        // If the focused element is within the video controls, blur it
+        target.blur();
+        // Optionally, refocus to a specific element if needed
+        document.body.focus();
+    }
+}, true); // Use capturing phase to catch the event early

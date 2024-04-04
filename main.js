@@ -52,14 +52,34 @@ ipcMain.on('open-save-folder-dialog', async (event) => {
 });
 
 ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTime, targetPath }) => {
+    // Construct your FFmpeg command
+    const ffmpegCommand = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${targetPath}"`;
 
-    const command = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${targetPath}"`;
-    exec(command, (error, stdout, stderr) => {
+    // Execute FFmpeg command
+    exec(ffmpegCommand, (error, stdout, stderr) => {
         if (error) {
             console.error(`exec error: ${error}`);
+            event.sender.send('ffmpeg-error', error.message);
             return;
         }
-        console.log(`Trimmed video saved to ${targetPath}`);
+        
+        // Upon successful FFmpeg processing, move the original video file to the "reviewed" folder
+        const reviewedFolderPath = path.join(path.dirname(videoPath), 'reviewed');
+        if (!fs.existsSync(reviewedFolderPath)) {
+            fs.mkdirSync(reviewedFolderPath);
+        }
+        const reviewedFilePath = path.join(reviewedFolderPath, path.basename(videoPath));
+        
+        fs.rename(videoPath, reviewedFilePath, (err) => {
+            if (err) {
+                console.error(`Error moving file: ${err}`);
+                event.sender.send('file-move-error', err.message);
+                return;
+            }
+
+            // Notify the renderer process that the video has been moved successfully
+            event.sender.send('video-moved', { originalPath: videoPath, newPath: reviewedFilePath });
+        });
     });
 });
 
