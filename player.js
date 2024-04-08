@@ -127,15 +127,17 @@ function displayCustomSaveDialog(subFolders) {
     }, 100); // A delay of 100ms is usually enough, but this can be adjusted if necessary
 
     const handleDialogKeydown = (event) => {
-        const key = event.key;
-        if (key >= '1' && key <= '9') {
-            // Map number keys to folders
-            const folderIndex = parseInt(key, 10) - 1;
+        // Check if Alt is pressed with a number key
+        if (event.altKey && event.key >= '1' && event.key <= '9') {
+            const folderIndex = parseInt(event.key, 10) - 1;
             if (folderIndex < subFolders.length) {
                 const selectedFolder = subFolders[folderIndex];
-                saveClip(nameInput.value.trim() || defaultName, selectedFolder);
-                overlay.remove();
+                const clipName = nameInput.value.trim() || defaultName;
+                saveClip(clipName, selectedFolder);
+                closeDialog;
             }
+            // Prevent the default action to avoid triggering other Alt+Number shortcuts
+            event.preventDefault();
         }
     };
 
@@ -151,8 +153,7 @@ function displayCustomSaveDialog(subFolders) {
         folderButton.textContent = buttonLabel;
         folderButton.onclick = () => {
             saveClip(nameInput.value.trim() || defaultName, folder);
-            document.removeEventListener('keydown', handleDialogKeydown);
-            overlay.remove();
+            closeDialog;
         };
         dialog.appendChild(folderButton);
     });
@@ -176,8 +177,12 @@ function saveClip(name, subFolder) {
         targetPath: targetPath
     });
 
-    // Close the dialog
+    moveToNextVideo();
+
+    
     document.getElementById('dialogOverlay').remove();
+    isSaveDialogOpen = false; // Reset the flag when the dialog closes
+    document.removeEventListener('keydown', handleDialogKeydown); // Remove dialog-specific keybinds
 }
 
 document.getElementById('saveFolder').addEventListener('click', () => {
@@ -190,20 +195,36 @@ ipcRenderer.on('selected-save-folder', (event, path) => {
 
 ipcRenderer.on('video-moved', (event, { originalPath, newPath }) => {
     // Remove the moved video from the videoPaths array
-    const index = videoPaths.indexOf(originalPath);
-    if (index > -1) {
-        videoPaths.splice(index, 1); // Remove the moved video from the list
+    const movedVideoIndex = videoPaths.findIndex(path => path === originalPath);
+    if (movedVideoIndex > -1) {
+        videoPaths.splice(movedVideoIndex, 1);
     }
 
-    // Play the next video, if any
-    if (videoPaths.length > 0) {
-        currentIndex = index >= videoPaths.length ? 0 : index; // Adjust index if needed
+    // If the currently playing video was moved, automatically load the next video
+    // This assumes currentIndex has already been adjusted in the moveToNextVideo function
+    if (movedVideoIndex === currentIndex) {
         playVideoAtIndex(currentIndex);
     } else {
-        // No more videos left, handle accordingly
-        console.log("No more videos to play.");
+        // Adjust currentIndex if necessary
+        if (movedVideoIndex < currentIndex) {
+            currentIndex -= 1;
+        }
     }
+
+    // Update any UI or application state that depends on the current list of videos or the current video
+    // For example, if you're displaying the list of video filenames somewhere in your UI, refresh that list here
 });
+
+
+function moveToNextVideo() {
+    if (currentIndex < videoPaths.length - 1) {
+        currentIndex++;
+    } else {
+        currentIndex = 0; // Loop back to the first video if at the end of the list
+    }
+    playVideoAtIndex(currentIndex);
+}
+
 
 function updateMarkerPositions() {
     const duration = videoPlayer.duration || 1; // Avoid division by zero
@@ -294,6 +315,12 @@ document.addEventListener('keydown', (event) => {
             if (currentIndex < videoPaths.length - 1) {
                 currentIndex++;
                 playVideoAtIndex(currentIndex);
+            }
+        } if (event.code === 'Space' && event.target.nodeName !== 'INPUT') {
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+            } else {
+                videoPlayer.pause();
             }
         }
         return;

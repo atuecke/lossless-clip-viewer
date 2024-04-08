@@ -5,23 +5,25 @@
     <link rel="stylesheet" href="styles.css"> <!-- Link to your CSS file -->
 </head>
 <body>
-    <div id="videoContainer">
-        <video id="videoPlayer" controls></video>
+    <div id="allItems">
         <button id="prevVideo">←</button>
+        <div id="videoAndButtons">
+            <video id="videoPlayer" controls></video>
+            <div id="trimSlider">
+                <div id="sliderTrack"></div>
+                <div id="leftMarker" class="marker"></div>
+                <div id="rightMarker" class="marker"></div>
+            </div>
+            <div id="controls">
+                <button id="leftTrim">Left Trim</button>
+                <span id="leftTrimTime">0:00</span>
+                <button id="rightTrim">Right Trim</button>
+                <span id="rightTrimTime">0:00</span>
+                <button id="saveClip">Save Clip</button>
+                <button id="saveFolder">Save Folder</button>
+            </div>
+        </div>
         <button id="nextVideo">→</button>
-    </div>
-    <div id="trimSlider">
-        <div id="sliderTrack"></div>
-        <div id="leftMarker" class="marker"></div>
-        <div id="rightMarker" class="marker"></div>
-    </div>
-    <div id="controls">
-        <button id="leftTrim">Left Trim</button>
-        <span id="leftTrimTime">0:00</span>
-        <button id="rightTrim">Right Trim</button>
-        <span id="rightTrimTime">0:00</span>
-        <button id="saveClip">Save Clip</button>
-        <button id="saveFolder">Save Folder</button>
     </div>
     <script src="player.js"></script>
 </body>
