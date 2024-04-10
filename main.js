@@ -52,8 +52,25 @@ ipcMain.on('open-save-folder-dialog', async (event) => {
 });
 
 ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTime, targetPath }) => {
-    // Construct your FFmpeg command
-    const ffmpegCommand = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${targetPath}"`;
+    // Function to generate a unique filename
+    function generateUniqueFilename(originalPath) {
+        let base = path.basename(originalPath, path.extname(originalPath));
+        let counter = 1;
+        let uniquePath = originalPath;
+        
+        // Check if the file exists and generate a new path until it's unique
+        while (fs.existsSync(uniquePath)) {
+            uniquePath = path.join(path.dirname(originalPath), `${base}-${counter}${path.extname(originalPath)}`);
+            counter++;
+        }
+        return uniquePath;
+    }
+
+    // Use the function to ensure the targetPath is unique
+    const uniqueTargetPath = generateUniqueFilename(targetPath);
+
+    // Construct your FFmpeg command using the unique path
+    const ffmpegCommand = `ffmpeg -ss ${startTime} -i "${videoPath}" -to ${endTime - startTime} -c copy "${uniqueTargetPath}"`;
 
     // Execute FFmpeg command
     exec(ffmpegCommand, (error, stdout, stderr) => {
@@ -62,14 +79,14 @@ ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTim
             event.sender.send('ffmpeg-error', error.message);
             return;
         }
-        
+
         // Upon successful FFmpeg processing, move the original video file to the "reviewed" folder
         const reviewedFolderPath = path.join(path.dirname(videoPath), 'reviewed');
         if (!fs.existsSync(reviewedFolderPath)) {
             fs.mkdirSync(reviewedFolderPath);
         }
         const reviewedFilePath = path.join(reviewedFolderPath, path.basename(videoPath));
-        
+
         fs.rename(videoPath, reviewedFilePath, (err) => {
             if (err) {
                 console.error(`Error moving file: ${err}`);
