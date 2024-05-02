@@ -20,6 +20,7 @@ function createWindow() {
 }
 
 ipcMain.on('open-file-dialog', (event) => {
+
     dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory']
     }).then(result => {
@@ -108,3 +109,22 @@ ipcMain.on('get-sub-folders', (event, saveFolderPath) => {
 });
 
 app.whenReady().then(createWindow);
+
+ipcMain.on('mark-video-reviewed', (event, videoPath) => {
+    const reviewedFolderPath = path.join(path.dirname(videoPath), 'reviewed');
+    if (!fs.existsSync(reviewedFolderPath)) {
+        fs.mkdirSync(reviewedFolderPath);
+    }
+    const reviewedFilePath = path.join(reviewedFolderPath, path.basename(videoPath));
+
+    fs.rename(videoPath, reviewedFilePath, (err) => {
+        if (err) {
+            console.error(`Error moving file: ${err}`);
+            event.sender.send('file-move-error', err.message);
+            return;
+        }
+
+        // Notify the renderer process that the video has been moved successfully
+        event.sender.send('video-moved', { originalPath: videoPath, newPath: reviewedFilePath });
+    });
+});

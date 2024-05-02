@@ -304,6 +304,9 @@ document.addEventListener('keydown', (event) => {
         } else if (event.key === 's') {
             // Save video
             showCustomSaveDialog();
+        } else if (event.key === 'r') {
+            // Save video
+            markReviewed();
         } else if (event.key === 'ArrowLeft') {
             // Move to previous video
             if (currentIndex > 0) {
@@ -338,3 +341,14 @@ document.addEventListener('focus', (event) => {
         document.body.focus();
     }
 }, true); // Use capturing phase to catch the event early
+
+function markReviewed(){
+    setTimeout(() => {
+        ipcRenderer.send('mark-video-reviewed', videoPaths[currentIndex-1]);
+    }, 1000);
+    moveToNextVideo();
+}
+
+document.getElementById('markReviewed').addEventListener('click', () => {
+    markReviewed();
+});
