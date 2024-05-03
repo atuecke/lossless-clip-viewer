@@ -1,5 +1,6 @@
 const { ipcRenderer } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let videoPaths = [];
 let currentIndex = 0;
@@ -14,6 +15,10 @@ const sliderTrack = document.getElementById('sliderTrack');
 let saveFolderPath = '';
 
 let isSaveDialogOpen = false;
+
+let audioPlayers = [];
+
+let playEventListeners = [];
 
 ipcRenderer.on('play-videos', (event, paths) => {
     videoPaths = paths;
@@ -35,17 +40,20 @@ document.getElementById('nextVideo').addEventListener('click', () => {
 });
 
 function playVideoAtIndex(index) {
+    cleanupAudioPlayers()
     const videoPlayer = document.getElementById('videoPlayer');
     videoPlayer.src = videoPaths[index];
     videoPlayer.play();
     leftTrimTime = 0;
     rightTrimTime = videoPlayer.duration;
+    ipcRenderer.send('extract-audio-tracks', { videoPath: videoPaths[index] });
 }
 
 videoPlayer.onloadedmetadata = () => {
     // Ensure rightTrimTime is the video's duration initially
     rightTrimTime = videoPlayer.duration;
     updateMarkerPositions();
+
 };
 
 document.getElementById('leftTrim').addEventListener('click', () => {
@@ -343,6 +351,11 @@ document.addEventListener('focus', (event) => {
 }, true); // Use capturing phase to catch the event early
 
 function markReviewed(){
+    const videoPlayer = document.getElementById('videoPlayer');
+    videoPlayer.pause();  // Ensure the player is paused
+    videoPlayer.src = ''; // Disconnect the source
+    videoPlayer.load();   // Force the browser to drop the connection to the file
+    
     setTimeout(() => {
         ipcRenderer.send('mark-video-reviewed', videoPaths[currentIndex-1]);
     }, 1000);
@@ -352,3 +365,77 @@ function markReviewed(){
 document.getElementById('markReviewed').addEventListener('click', () => {
     markReviewed();
 });
+
+ipcRenderer.on('audio-tracks-extracted', (event, tempFolder) => {
+    fs.readdir(tempFolder, (err, files) => {
+        if (err) {
+            console.error('Error reading temp folder:', err);
+            return;
+        }
+
+        files.forEach((file) => {
+            if (file.endsWith('.mp3')) { // Only handle AAC files
+                const audioPlayer = new Audio(`file://${path.join(tempFolder, file)}`);
+                audioPlayers.push(audioPlayer);
+
+                // Set up synchronization with the video player
+                const playListener = () => {
+                    if (audioPlayer.paused) {
+                        audioPlayer.currentTime = videoPlayer.currentTime;
+                        audioPlayer.play().catch(e => console.log('Error playing audio:', e));
+                    }
+                };
+                videoPlayer.addEventListener('play', playListener);
+                playEventListeners.push(playListener); // Store reference for later removal
+
+                videoPlayer.addEventListener('pause', () => audioPlayer.pause());
+                videoPlayer.addEventListener('seeked', () => {
+                    audioPlayer.currentTime = videoPlayer.currentTime;
+                });
+
+                // Play audio if the video is currently playing
+                if (!videoPlayer.paused) {
+                    audioPlayer.play().catch(e => console.log('Error playing audio:', e));
+                }
+                audioPlayer.currentTime = videoPlayer.currentTime;
+            }
+        });
+        syncAudioPlayerVolumes();  // Sync volumes right after setup
+    });
+});
+
+function cleanupAudioPlayers() {
+    console.log('Cleaning up audio players...');
+    audioPlayers.forEach(player => {
+        player.pause();
+        player.src = '';
+        if (player.parentNode) {
+            player.parentNode.removeChild(player); // Ensure it's removed from the DOM
+        }
+    });
+    audioPlayers = [];
+
+    // Remove all play event listeners
+    playEventListeners.forEach(listener => {
+        videoPlayer.removeEventListener('play', listener);
+    });
+    playEventListeners = [];
+
+    // If replacing videoPlayer, reattach the volume change listener
+    videoPlayer.removeEventListener('volumechange', syncAudioPlayerVolumes);
+    videoPlayer.addEventListener('volumechange', syncAudioPlayerVolumes);
+}
+
+window.addEventListener('beforeunload', () => {
+    cleanupAudioPlayers();
+});
+
+function syncAudioPlayerVolumes() {
+    const videoVolume = videoPlayer.volume;
+    audioPlayers.forEach(audioPlayer => {
+        audioPlayer.volume = videoVolume;  // Set each audio player's volume to match the video player's volume
+    });
+}
+
+videoPlayer.addEventListener('volumechange', syncAudioPlayerVolumes);
+

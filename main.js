@@ -128,3 +128,53 @@ ipcMain.on('mark-video-reviewed', (event, videoPath) => {
         event.sender.send('video-moved', { originalPath: videoPath, newPath: reviewedFilePath });
     });
 });
+
+ipcMain.on('extract-audio-tracks', (event, { videoPath }) => {
+    const tempFolder = path.join(path.dirname(videoPath), 'temp');
+    if (fs.existsSync(tempFolder)) {
+        fs.rmdirSync(tempFolder, { recursive: true });//remove any current files in the temp folder
+    }
+    fs.mkdirSync(tempFolder);
+    
+
+    // Use ffprobe to determine the number of audio tracks
+    const ffprobeCommand = `ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${videoPath}"`;
+
+    exec(ffprobeCommand, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`ffprobe error: ${error}`);
+            event.sender.send('ffmpeg-error', `ffprobe error: ${error.message}`);
+            return;
+        }
+
+        // Normalize line endings and split into lines, adjust indices to start from 0
+        const audioIndices = stdout.replace(/\r\n|\n|\r/gm, "\n").trim().split('\n').map(index => index - 1).slice(1);
+
+        if (audioIndices.length === 0) {
+            console.log('No audio tracks found.');
+            event.sender.send('no-audio-tracks-found');
+            return;
+        }
+
+        // Build the ffmpeg command to extract each audio track
+        let ffmpegCommand = `ffmpeg -i "${videoPath}" `;
+        audioIndices.forEach((index, i) => {
+            ffmpegCommand += `-map 0:a:${index} "${tempFolder}/audio_track_${i + 1}.mp3" `;
+        });
+
+        exec(ffmpegCommand, (error, ffmpegStdout, ffmpegStderr) => {
+            if (error) {
+                console.error(`ffmpeg exec error: ${error}`);
+                event.sender.send('ffmpeg-error', error.message);
+                return;
+            }
+
+            // Send back the path where audio tracks are saved
+            event.sender.send('audio-tracks-extracted', tempFolder);
+        });
+    });
+});
+
+ipcMain.on('cleanup-temp-folder', (event, { folderPath }) => {
+    fs.rmdirSync(folderPath, { recursive: true }); // Make sure this path is correct and safe to delete!
+});
