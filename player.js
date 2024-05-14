@@ -20,6 +20,8 @@ let audioPlayers = [];
 
 let playEventListeners = [];
 
+let autoReview = true; // By default, auto review is on
+
 ipcRenderer.on('play-videos', (event, paths) => {
     videoPaths = paths;
     playVideoAtIndex(currentIndex);
@@ -182,10 +184,13 @@ function saveClip(name, subFolder) {
         videoPath: videoPaths[currentIndex],
         startTime: leftTrimTime,
         endTime: rightTrimTime,
-        targetPath: targetPath
+        targetPath: targetPath,
+        autoReview: autoReview
     });
 
-    moveToNextVideo();
+    if (autoReview) {
+        moveToNextVideo();
+    }
 
     
     document.getElementById('dialogOverlay').remove();
@@ -336,6 +341,11 @@ document.addEventListener('keydown', (event) => {
         }
         return;
     }
+});
+
+document.getElementById('autoReview').addEventListener('click', () => {
+    autoReview = !autoReview; // Toggle the state
+    document.getElementById('autoReview').textContent = autoReview ? 'Auto Review: ON' : 'Auto Review: OFF';
 });
 
 document.addEventListener('focus', (event) => {

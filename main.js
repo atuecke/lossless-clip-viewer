@@ -52,7 +52,7 @@ ipcMain.on('open-save-folder-dialog', async (event) => {
     }
 });
 
-ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTime, targetPath }) => {
+ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTime, targetPath, autoReview}) => {
     // Function to generate a unique filename
     function generateUniqueFilename(originalPath) {
         let base = path.basename(originalPath, path.extname(originalPath));
@@ -81,23 +81,25 @@ ipcMain.on('save-trimmed-clip-with-name', (event, { videoPath, startTime, endTim
             return;
         }
 
-        // Upon successful FFmpeg processing, move the original video file to the "reviewed" folder
-        const reviewedFolderPath = path.join(path.dirname(videoPath), 'reviewed');
-        if (!fs.existsSync(reviewedFolderPath)) {
-            fs.mkdirSync(reviewedFolderPath);
-        }
-        const reviewedFilePath = path.join(reviewedFolderPath, path.basename(videoPath));
-
-        fs.rename(videoPath, reviewedFilePath, (err) => {
-            if (err) {
-                console.error(`Error moving file: ${err}`);
-                event.sender.send('file-move-error', err.message);
-                return;
+        if(autoReview){
+            // Upon successful FFmpeg processing, move the original video file to the "reviewed" folder
+            const reviewedFolderPath = path.join(path.dirname(videoPath), 'reviewed');
+            if (!fs.existsSync(reviewedFolderPath)) {
+                fs.mkdirSync(reviewedFolderPath);
             }
+            const reviewedFilePath = path.join(reviewedFolderPath, path.basename(videoPath));
 
-            // Notify the renderer process that the video has been moved successfully
-            event.sender.send('video-moved', { originalPath: videoPath, newPath: reviewedFilePath });
-        });
+            fs.rename(videoPath, reviewedFilePath, (err) => {
+                if (err) {
+                    console.error(`Error moving file: ${err}`);
+                    event.sender.send('file-move-error', err.message);
+                    return;
+                }
+
+                // Notify the renderer process that the video has been moved successfully
+                event.sender.send('video-moved', { originalPath: videoPath, newPath: reviewedFilePath });
+            });
+        }
     });
 });
 
